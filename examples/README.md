@@ -43,7 +43,25 @@ cat /Users/frank/work/aidev/runs/<run-dir>/verification.md
 
 说明：如果外部 Markdown 示例只让 MetaGPT 生成中间设计/资源文档、没有生成可执行代码或测试，`verification.md` 可能显示 `UNKNOWN`；这时重点查看 `meta_summary.md` 和 `metagpt_output/`。
 
-## 示例 2：patch 模式预览已有 Node 项目
+## 示例 2：复杂 Markdown 设计输入
+
+文件：
+
+```text
+examples/design-file/taskflow-complex-design.md
+```
+
+用途：验证复杂设计文档输入，包括多模块 Python CLI、JSON 持久化、CSV 导入导出、统计和 pytest 测试。
+
+本地已验证的复杂 run：
+
+```text
+/Users/frank/work/aidev/runs/20260504-212907-实现技术设计文档-taskflow-complex-design-md
+```
+
+注意：复杂项目可能超过单次 MetaGPT 实现超时时间；如果 workspace 已生成部分产物，可以将其复制到 run 的 `metagpt_output/` 后继续执行 `--phase verify`。
+
+## 示例 3：patch 模式预览已有 Node 项目
 
 目标项目：
 
@@ -84,7 +102,7 @@ cat /Users/frank/work/aidev/runs/<run-dir>/verification.md
 
 patch 模式直接生成文件块并应用到临时产物目录，通常不会产生完整 MetaGPT 中间文档；重点检查 `target_diff.md` 和验证报告。
 
-## 示例 3：从需求文本创建新项目
+## 示例 4：从需求文本创建新项目
 
 需求文件：
 
