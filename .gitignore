@@ -1,0 +1,11 @@
+.env
+config2.yaml
+runs/
+workspace/
+test-runs/
+target-smoke/
+logs/
+htmlcov/
+.pytest_cache/
+__pycache__/
+*.pyc

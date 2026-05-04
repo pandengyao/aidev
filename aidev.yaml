@@ -1,0 +1,23 @@
+version: "0.1.0"
+model: "Claude Sonnet 4.6"
+budget: 50.0
+rounds: 30
+max_repair_attempts: 5
+engineer_count: 2
+max_token: 128000
+runs_root: "/Users/frank/work/aidev/runs"
+workspace_root: "/Users/frank/work/aidev/workspace"
+verification:
+  auto_install_tools: true
+  node:
+    command: ["npm", "test"]
+    timeout: 180
+    conda_package: "nodejs"
+  go:
+    command: ["go", "test", "./..."]
+    timeout: 180
+    conda_package: "go"
+  rust:
+    command: ["cargo", "test"]
+    timeout: 240
+    conda_package: "rust"

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec conda run -n aidev python /Users/frank/work/aidev/pipeline.py "$@"
