@@ -194,6 +194,15 @@ def print_status() -> None:
     print(f"go: {command_version('go', ['version'])}")
     print(f"cargo: {command_version('cargo', ['--version'])}")
     try:
+        models = list_oneapi_models(timeout=15)
+        current_model = os.environ.get("ANTHROPIC_MODEL", str(CONFIG["model"]))
+        print(f"oneapi_models: {len(models)} available")
+        print(f"model_available: {'yes' if current_model in models else 'unknown'}")
+        if models:
+            print(f"model_examples: {', '.join(models[:5])}")
+    except Exception as error:
+        print(f"oneapi_models: unavailable ({error})")
+    try:
         response = call_oneapi("ping", max_tokens=5, timeout=30, retries=1)
         print(f"oneapi: ok ({response[:40]})")
     except Exception as error:
@@ -256,8 +265,49 @@ def get_required_env(name: str) -> str:
     return value
 
 
+def oneapi_headers() -> dict[str, str]:
+    return {
+        "x-api-key": get_required_env("ANTHROPIC_API_KEY"),
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+
+
+def list_oneapi_models(timeout: int = 30) -> list[str]:
+    base_url = os.environ.get("ANTHROPIC_BASE_URL", "https://oneapi-comate.baidu-int.com").rstrip("/")
+    request = urllib.request.Request(f"{base_url}/v1/models", headers=oneapi_headers(), method="GET")
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        data = json.loads(response.read().decode("utf-8"))
+    models = data.get("data", data if isinstance(data, list) else [])
+    names: list[str] = []
+    for model in models:
+        if isinstance(model, str):
+            names.append(model)
+        elif isinstance(model, dict):
+            name = model.get("id") or model.get("name") or model.get("model")
+            if isinstance(name, str) and name:
+                names.append(name)
+    return sorted(set(names))
+
+
+def check_configured_model() -> None:
+    configured_model = os.environ.get("ANTHROPIC_MODEL", str(CONFIG["model"]))
+    try:
+        models = list_oneapi_models(timeout=15)
+    except Exception as error:
+        logger.warning("无法获取 OneAPI 模型列表，跳过模型可用性检查：%s", error)
+        return
+    if not models:
+        logger.warning("OneAPI 模型列表为空，跳过模型可用性检查")
+        return
+    if configured_model not in models:
+        preview = ", ".join(models[:10])
+        logger.warning("当前模型 `%s` 不在 OneAPI 模型列表中；可用模型示例：%s", configured_model, preview)
+        return
+    logger.info("当前模型可用：%s", configured_model)
+
+
 def call_oneapi(prompt: str, max_tokens: int = 4096, timeout: int = 180, retries: int = 4) -> str:
-    api_key = get_required_env("ANTHROPIC_API_KEY")
     base_url = os.environ.get("ANTHROPIC_BASE_URL", "https://oneapi-comate.baidu-int.com").rstrip("/")
     model = os.environ.get("ANTHROPIC_MODEL", "Claude Sonnet 4.6")
     payload = {
@@ -270,11 +320,7 @@ def call_oneapi(prompt: str, max_tokens: int = 4096, timeout: int = 180, retries
         request = urllib.request.Request(
             f"{base_url}/v1/messages",
             data=json.dumps(payload).encode("utf-8"),
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
+            headers=oneapi_headers(),
             method="POST",
         )
         try:
@@ -1255,6 +1301,7 @@ def main() -> None:
         parser.error(str(error))
     if args.model:
         os.environ["ANTHROPIC_MODEL"] = args.model
+    check_configured_model()
     asyncio.run(
         run_pipeline(
             requirement,

@@ -8,6 +8,7 @@
 /Users/frank/work/aidev/
 ├── pipeline.py          # 主入口
 ├── aidev.yaml           # 默认配置
+├── .env.example         # 环境变量模板，可提交
 ├── .env                 # OneAPI Key 等敏感配置，不提交
 ├── config2.yaml         # 自动生成的 MetaGPT 配置，不提交
 ├── environment.yml      # Conda 环境导出
@@ -79,13 +80,21 @@ verification:
     conda_package: "rust"
 ```
 
-敏感配置在 `/Users/frank/work/aidev/.env`，例如：
+敏感配置在 `/Users/frank/work/aidev/.env`。新机器上先复制模板：
+
+```bash
+cp /Users/frank/work/aidev/.env.example /Users/frank/work/aidev/.env
+```
+
+然后填写自己的 OneAPI Key：
 
 ```bash
 ANTHROPIC_API_KEY=你的 OneAPI Key
 ANTHROPIC_BASE_URL=https://oneapi-comate.baidu-int.com
 ANTHROPIC_MODEL="Claude Sonnet 4.6"
 ```
+
+如果 OneAPI 后续开放新模型，可直接修改 `.env` 中的 `ANTHROPIC_MODEL`；运行时会尝试检查该模型是否出现在 `/v1/models` 返回列表中。
 
 ### `aidev.yaml` 与 `config2.yaml` 的区别
 
@@ -110,7 +119,39 @@ ANTHROPIC_MODEL="Claude Sonnet 4.6"
 
 `config2.yaml` 里会包含 OneAPI / Anthropic 的连接配置。当前实现会写入运行时展开后的 API Key，因为 MetaGPT 对 `${ANTHROPIC_API_KEY}` 这种占位符展开不稳定；这样做能保证 MetaGPT 阶段可用。
 
-注意：`config2.yaml` 可能包含明文 API Key，已经加入 `.gitignore`，不要提交。
+注意：`config2.yaml` 可能包含明文 API Key，已经加入 `.gitignore`，不要提交、不要上传、不要跨电脑共享。如果真实 Key 曾经被贴出或误传，建议去 OneAPI 后台重置/更换。
+
+## 跨电脑迁移
+
+推荐用 GitHub 或其他 Git 仓库共享项目代码，但只共享可复现源码和文档，不共享本机运行产物和密钥。
+
+在当前电脑推送：
+
+```bash
+cd /Users/frank/work/aidev
+git remote add origin <你的 GitHub 仓库地址>
+git push -u origin main
+```
+
+在另一台电脑恢复：
+
+```bash
+git clone <你的 GitHub 仓库地址> /Users/frank/work/aidev
+cd /Users/frank/work/aidev
+conda create -n aidev python=3.11 -y
+conda activate aidev
+./install.sh
+cp .env.example .env
+```
+
+然后编辑 `.env`，填入自己的 `ANTHROPIC_API_KEY`。`ANTHROPIC_MODEL` 可以填写当前可用模型，例如 Sonnet 或未来的 Opus 系列；运行 aidev 时会先尝试读取 OneAPI 模型列表并校验当前模型是否可用。`config2.yaml` 不需要手动复制，运行 aidev 时会自动生成。
+
+忽略文件的处理方式：
+
+- `.env`：每台电脑单独创建，不能提交。
+- `config2.yaml`：自动生成，不能提交，也不需要共享；如果其中的真实 Key 泄露，建议重置/更换 Key。
+- `runs/`：运行记录和中间产物，默认不提交；确需共享时单独打包某个 run 目录。
+- `workspace/`、`logs/`、`test-runs/`：本地运行产物，不需要共享。
 
 ## 示例
 
@@ -232,13 +273,15 @@ aidev --status
 conda env export -n aidev > /Users/frank/work/aidev/environment.yml
 ```
 
-更新依赖后建议执行：
+更新依赖或切换模型后建议执行：
 
 ```bash
 conda run -n aidev python -m py_compile /Users/frank/work/aidev/pipeline.py
 aidev --status
 aidev --list-runs 5
 ```
+
+`aidev --status` 会尝试读取 OneAPI `/v1/models`，展示可用模型数量、当前模型是否可识别，以及部分模型示例。
 
 ## 从需求生成代码
 
