@@ -30,7 +30,7 @@ conda activate aidev
 /Users/frank/work/aidev/install.sh
 ```
 
-建议优先使用 `install.sh` 安装依赖；`requirements.txt` 仅作为依赖清单参考，MetaGPT 相关依赖对版本比较敏感。
+建议优先使用 `install.sh` 安装依赖；`requirements.txt` 仅作为依赖清单参考，MetaGPT 相关依赖对版本比较敏感。`install.sh` 通过 `conda run -n aidev python` 使用虚拟环境，不依赖 Conda 的安装根路径。
 
 `~/.zshrc` 中已配置 PATH：
 
@@ -144,7 +144,7 @@ conda activate aidev
 cp .env.example .env
 ```
 
-然后编辑 `.env`，填入自己的 `ANTHROPIC_API_KEY`。`ANTHROPIC_MODEL` 可以填写当前可用模型，例如 Sonnet 或未来的 Opus 系列；运行 aidev 时会先尝试读取 OneAPI 模型列表并校验当前模型是否可用。`config2.yaml` 不需要手动复制，运行 aidev 时会自动生成。
+然后编辑 `.env`，填入自己的 `ANTHROPIC_API_KEY`。`ANTHROPIC_MODEL` 可以填写当前可用模型，例如 Sonnet 或未来的 Opus 系列；运行 aidev 时会先尝试读取 OneAPI 模型列表并校验当前模型是否可用。`config2.yaml` 不需要手动复制，运行 aidev 时会自动生成。`install.sh` 不要求新电脑的 Conda 安装在固定目录，只要求存在名为 `aidev` 的 Conda 环境。
 
 忽略文件的处理方式：
 

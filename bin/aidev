@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-exec conda run -n aidev python /Users/frank/work/aidev/pipeline.py "$@"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+exec conda run -n aidev python "${PROJECT_ROOT}/pipeline.py" "$@"
