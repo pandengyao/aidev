@@ -4,7 +4,7 @@
 
 ## 当前保留的验证 run
 
-`runs/` 已清理为只保留当前示例相关的中间产物：
+`runs/` 当前保留了一些历史示例产物；新 run 会使用 `编号-项目名-时间戳` 命名，并按阶段拆分到 `00_input/`、`01_design/`、`02_metagpt/`、`03_code/`、`04_verification/`、`05_repair/`、`06_reports/`、`07_target/`。当前历史示例包括：
 
 ```text
 /Users/frank/work/aidev/runs/20260504-190639-实现技术设计文档-hello-design-md
@@ -34,9 +34,9 @@ aidev \
 运行后建议查看：
 
 ```bash
-cat /Users/frank/work/aidev/runs/<run-dir>/summary.md
-cat /Users/frank/work/aidev/runs/<run-dir>/meta_summary.md
-cat /Users/frank/work/aidev/runs/<run-dir>/verification.md
+cat /Users/frank/work/aidev/runs/<run-dir>/06_reports/summary.md
+cat /Users/frank/work/aidev/runs/<run-dir>/06_reports/meta_summary.md
+cat /Users/frank/work/aidev/runs/<run-dir>/04_verification/verification.md
 ```
 
 其中 `meta_summary.md` 用来确认 MetaGPT 的 PRD、系统设计、任务拆分和最终项目目录是否已被索引。
@@ -95,9 +95,9 @@ aidev "给 README 增加 Usage 小节，包含 npm install 和 npm test" \
 运行后建议查看：
 
 ```bash
-cat /Users/frank/work/aidev/runs/<run-dir>/summary.md
-cat /Users/frank/work/aidev/runs/<run-dir>/target_diff.md
-cat /Users/frank/work/aidev/runs/<run-dir>/verification.md
+cat /Users/frank/work/aidev/runs/<run-dir>/06_reports/summary.md
+cat /Users/frank/work/aidev/runs/<run-dir>/07_target/target_diff.md
+cat /Users/frank/work/aidev/runs/<run-dir>/04_verification/verification.md
 ```
 
 patch 模式直接生成文件块并应用到临时产物目录，通常不会产生完整 MetaGPT 中间文档；重点检查 `target_diff.md` 和验证报告。
@@ -123,9 +123,9 @@ aidev "$(cat /Users/frank/work/aidev/examples/requirements/calculator-requiremen
 运行后建议查看：
 
 ```bash
-cat /Users/frank/work/aidev/runs/<run-dir>/summary.md
-cat /Users/frank/work/aidev/runs/<run-dir>/meta_summary.md
-cat /Users/frank/work/aidev/runs/<run-dir>/verification.md
+cat /Users/frank/work/aidev/runs/<run-dir>/06_reports/summary.md
+cat /Users/frank/work/aidev/runs/<run-dir>/06_reports/meta_summary.md
+cat /Users/frank/work/aidev/runs/<run-dir>/04_verification/verification.md
 ```
 
 ## 快速验证已有 run 的 MetaGPT 透明度产物

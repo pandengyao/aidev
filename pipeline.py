@@ -129,16 +129,100 @@ class Tee:
             stream.flush()
 
 
+RUN_LAYOUT = {
+    "input": "00_input",
+    "design": "01_design",
+    "metagpt": "02_metagpt",
+    "code": "03_code",
+    "verification": "04_verification",
+    "repair": "05_repair",
+    "reports": "06_reports",
+    "target": "07_target",
+}
+RUN_SEQUENCE_WIDTH = 4
+
+
+def run_section(run_dir: Path, section: str) -> Path:
+    return run_dir / RUN_LAYOUT[section]
+
+
+def ensure_run_layout(run_dir: Path) -> None:
+    for section in RUN_LAYOUT:
+        run_section(run_dir, section).mkdir(parents=True, exist_ok=True)
+
+
+def first_existing_path(*paths: Path) -> Path:
+    for path in paths:
+        if path.exists():
+            return path
+    return paths[0]
+
+
+def requirement_file(run_dir: Path) -> Path:
+    return first_existing_path(run_section(run_dir, "input") / "requirement.md", run_dir / "requirement.md")
+
+
+def design_doc_file(run_dir: Path) -> Path:
+    return first_existing_path(run_section(run_dir, "design") / "design.md", run_dir / "design.md")
+
+
+def summary_file(run_dir: Path) -> Path:
+    return first_existing_path(run_section(run_dir, "reports") / "summary.md", run_dir / "summary.md")
+
+
+def run_log_file(run_dir: Path) -> Path:
+    return first_existing_path(run_section(run_dir, "reports") / "run.log", run_dir / "run.log")
+
+
+def verification_file(run_dir: Path) -> Path:
+    return first_existing_path(run_section(run_dir, "verification") / "verification.md", run_dir / "verification.md")
+
+
+def repair_file(run_dir: Path) -> Path:
+    return first_existing_path(run_section(run_dir, "repair") / "repair.md", run_dir / "repair.md")
+
+
+def target_diff_file(run_dir: Path) -> Path:
+    return first_existing_path(run_section(run_dir, "target") / "target_diff.md", run_dir / "target_diff.md")
+
+
+def meta_summary_file(run_dir: Path) -> Path:
+    return first_existing_path(run_section(run_dir, "reports") / "meta_summary.md", run_dir / "meta_summary.md")
+
+
+def metagpt_artifacts_root(run_dir: Path) -> Path:
+    return run_section(run_dir, "metagpt")
+
+
+def code_artifacts_root(run_dir: Path) -> Path:
+    return run_section(run_dir, "code")
+
+
 def add_run_log_handler(run_dir: Path) -> logging.Handler:
-    handler = logging.FileHandler(run_dir / "run.log", encoding="utf-8")
+    ensure_run_layout(run_dir)
+    handler = logging.FileHandler(run_log_file(run_dir), encoding="utf-8")
     handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
     logging.getLogger().addHandler(handler)
     return handler
 
 
 def slugify(text: str) -> str:
-    slug = re.sub(r"[^\w\u4e00-\u9fff-]+", "-", text.strip())[:40].strip("-")
+    slug = re.sub(r"[^\w\u4e00-\u9fff-]+", "-", text.strip())[:48].strip("-")
     return slug or "task"
+
+
+def next_run_sequence(output_root: Path) -> int:
+    output_root = output_root.expanduser()
+    if not output_root.exists():
+        return 1
+    max_sequence = 0
+    for path in output_root.iterdir():
+        if not path.is_dir():
+            continue
+        match = re.match(rf"^(\d{{{RUN_SEQUENCE_WIDTH}}})-", path.name)
+        if match:
+            max_sequence = max(max_sequence, int(match.group(1)))
+    return max_sequence + 1
 
 
 def create_run_dir(requirement: str, run_dir_arg: Optional[str] = None, output_root: Path = RUNS_ROOT) -> Path:
@@ -146,17 +230,19 @@ def create_run_dir(requirement: str, run_dir_arg: Optional[str] = None, output_r
         run_dir = Path(run_dir_arg).expanduser()
     else:
         run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
-        run_dir = output_root.expanduser() / f"{run_id}-{slugify(requirement)}"
+        sequence = next_run_sequence(output_root)
+        run_dir = output_root.expanduser() / f"{sequence:0{RUN_SEQUENCE_WIDTH}d}-{slugify(requirement)}-{run_id}"
     run_dir.mkdir(parents=True, exist_ok=True)
+    ensure_run_layout(run_dir)
     return run_dir
 
 
 def read_summary(run_dir: Path) -> dict[str, str]:
-    summary_path = run_dir / "summary.md"
-    if not summary_path.exists():
+    path = summary_file(run_dir)
+    if not path.exists():
         return {}
     summary: dict[str, str] = {}
-    for line in summary_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
         if not line.startswith("- ") or ":" not in line:
             continue
         key, value = line[2:].split(":", 1)
@@ -230,10 +316,11 @@ def infer_requirement(requirement: Optional[str], run_dir_arg: Optional[str], de
     if design_file:
         return f"实现技术设计文档：{design_file.expanduser().name}"
     if run_dir_arg:
-        requirement_path = Path(run_dir_arg).expanduser() / "requirement.md"
-        if requirement_path.exists():
-            return requirement_path.read_text(encoding="utf-8", errors="ignore").strip() or f"继续运行：{Path(run_dir_arg).name}"
-        return f"继续运行：{Path(run_dir_arg).name}"
+        run_dir = Path(run_dir_arg).expanduser()
+        path = requirement_file(run_dir)
+        if path.exists():
+            return path.read_text(encoding="utf-8", errors="ignore").strip() or f"继续运行：{run_dir.name}"
+        return f"继续运行：{run_dir.name}"
     raise ValueError("缺少 requirement；请提供需求文本，或使用 --design-file / --run-dir")
 
 
@@ -450,7 +537,7 @@ def run_design_phase(requirement: str, run_dir: Path, mode: str = "new", target_
 需求：{effective_requirement}
 """.strip()
     design = call_oneapi(prompt)
-    (run_dir / "design.md").write_text(design, encoding="utf-8")
+    design_doc_file(run_dir).write_text(design, encoding="utf-8")
     return design
 
 
@@ -713,7 +800,7 @@ def run_patch_apply_phase(design_doc: str, run_dir: Path, target_dir: Path) -> P
     target_dir = target_dir.expanduser()
     if not target_dir.exists():
         raise FileNotFoundError(f"目标项目目录不存在：{target_dir}")
-    output_dir = run_dir / "metagpt_output" / "patch_apply"
+    output_dir = code_artifacts_root(run_dir) / "patch_apply"
     copy_tree_excluding(target_dir, output_dir)
     context = collect_target_context(target_dir)
     prompt = f"""
@@ -739,8 +826,9 @@ def run_patch_apply_phase(design_doc: str, run_dir: Path, target_dir: Path) -> P
     response = call_oneapi(prompt, max_tokens=int(CONFIG["max_token"]), timeout=300)
     file_blocks = parse_file_blocks(response)
     if not file_blocks:
-        (run_dir / "patch_response.txt").write_text(response, encoding="utf-8")
-        raise RuntimeError(f"模型未返回可解析的 FILE 块，原始响应已保存：{run_dir / 'patch_response.txt'}")
+        response_path = run_section(run_dir, "reports") / "patch_response.txt"
+        response_path.write_text(response, encoding="utf-8")
+        raise RuntimeError(f"模型未返回可解析的 FILE 块，原始响应已保存：{response_path}")
     for relative_path, file_content in file_blocks.items():
         destination = output_dir / relative_path
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -749,10 +837,33 @@ def run_patch_apply_phase(design_doc: str, run_dir: Path, target_dir: Path) -> P
     return output_dir
 
 
+def artifact_dirs(root: Path) -> list[Path]:
+    if not root.exists():
+        return []
+    return [path for path in root.iterdir() if path.is_dir()]
+
+
+def metagpt_output_roots(run_dir: Path) -> list[Path]:
+    roots = artifact_dirs(metagpt_artifacts_root(run_dir))
+    if roots:
+        return roots
+    legacy_root = run_dir / "metagpt_output"
+    return artifact_dirs(legacy_root)
+
+
+def code_artifact_roots(run_dir: Path) -> list[Path]:
+    roots = artifact_dirs(code_artifacts_root(run_dir))
+    if roots:
+        return roots
+    return artifact_dirs(run_dir / "metagpt_output")
+
+
+def code_output_roots(run_dir: Path) -> list[Path]:
+    return code_artifact_roots(run_dir) or [run_dir]
+
+
 def run_repair(run_dir: Path) -> Path:
-    output_roots = [path for path in (run_dir / "metagpt_output").glob("*") if path.is_dir()]
-    if not output_roots:
-        output_roots = [run_dir]
+    output_roots = code_output_roots(run_dir)
 
     repaired_files: list[Path] = []
     for output_root in output_roots:
@@ -766,7 +877,7 @@ def run_repair(run_dir: Path) -> Path:
             repaired_files.append(path)
 
     report = run_verification(run_dir)
-    repair_report = run_dir / "repair.md"
+    repair_report = repair_file(run_dir)
     lines = ["# Repair", "", f"- Repaired files: {len(repaired_files)}"]
     for path in repaired_files:
         lines.append(f"  - `{path}`")
@@ -777,8 +888,9 @@ def run_repair(run_dir: Path) -> Path:
 
 
 def write_meta_summary(run_dir: Path) -> Optional[Path]:
-    output_roots = [path for path in (run_dir / "metagpt_output").glob("*") if path.is_dir()]
-    if not output_roots:
+    output_roots = metagpt_output_roots(run_dir)
+    code_roots = code_artifact_roots(run_dir)
+    if not output_roots and not code_roots:
         return None
     lines = ["# MetaGPT Artifacts", ""]
     for output_root in output_roots:
@@ -799,12 +911,12 @@ def write_meta_summary(run_dir: Path) -> Optional[Path]:
             for path in files[:20]:
                 lines.append(f"- `{path.relative_to(output_root)}`")
             lines.append("")
-        project_root = final_project_root_from_output(output_root)
-        if project_root:
-            lines.append("### Generated Project")
-            lines.append(f"- `{project_root.relative_to(output_root)}`")
-            lines.append("")
-    report_path = run_dir / "meta_summary.md"
+    if code_roots:
+        lines.append("## Code Artifacts")
+        for code_root in code_roots:
+            lines.append(f"- `{code_root.relative_to(run_dir)}`")
+        lines.append("")
+    report_path = meta_summary_file(run_dir)
     report_path.write_text("\n".join(lines), encoding="utf-8")
     logger.info("MetaGPT 产物索引已生成：%s", report_path)
     return report_path
@@ -821,9 +933,7 @@ def final_project_root_from_output(output_root: Path) -> Optional[Path]:
 
 
 def final_project_root(run_dir: Path) -> Optional[Path]:
-    output_roots = [path for path in (run_dir / "metagpt_output").glob("*") if path.is_dir()]
-    search_roots = output_roots or [run_dir]
-    for search_root in search_roots:
+    for search_root in code_output_roots(run_dir):
         project_root = final_project_root_from_output(search_root)
         if project_root:
             return project_root
@@ -855,7 +965,7 @@ def write_preview_target_report(run_dir: Path, target_dir: Path) -> Path:
         for path in source_dir.rglob("*")
         if path.is_file() and not any(part in {".git", "node_modules", "__pycache__", ".pytest_cache", "target", "dist", "build", "htmlcov"} for part in path.relative_to(source_dir).parts)
     ]
-    report_path = run_dir / "target_diff.md"
+    report_path = target_diff_file(run_dir)
     lines = [
         "# Target Diff",
         "",
@@ -889,7 +999,7 @@ def copy_project_to_target(run_dir: Path, target_dir: Path, allow_dirty_target: 
     is_git_repo = (target_dir / ".git").exists()
     git_status_before = git_output(["status", "--short"], target_dir) if is_git_repo else ""
     if is_git_repo and git_status_before and not allow_dirty_target:
-        report_path = run_dir / "target_diff.md"
+        report_path = target_diff_file(run_dir)
         report_path.write_text(
             "# Target Diff\n\n"
             f"- Source: `{source_dir}`\n"
@@ -919,7 +1029,7 @@ def copy_project_to_target(run_dir: Path, target_dir: Path, allow_dirty_target: 
     after_files = {path.relative_to(target_dir) for path in target_dir.rglob("*") if path.is_file()}
     new_files = sorted(after_files - before_files)
     touched_files = sorted(set(copied_files))
-    report_path = run_dir / "target_diff.md"
+    report_path = target_diff_file(run_dir)
     lines = [
         "# Target Diff",
         "",
@@ -966,10 +1076,8 @@ def copy_project_to_target(run_dir: Path, target_dir: Path, allow_dirty_target: 
 
 
 def run_verification(run_dir: Path) -> Path:
-    report_path = run_dir / "verification.md"
-    output_roots = [path for path in (run_dir / "metagpt_output").glob("*") if path.is_dir()]
-    if not output_roots:
-        output_roots = [run_dir]
+    report_path = verification_file(run_dir)
+    output_roots = code_output_roots(run_dir)
 
     checks: list[bool] = []
     skipped_checks = 0
@@ -1112,15 +1220,23 @@ async def run_implementation_phase(
             candidate_dirs = [path for path in workspace_root.iterdir() if path.is_dir()]
         if candidate_dirs:
             latest_dir = max(candidate_dirs, key=lambda path: path.stat().st_mtime)
-            output_dir = run_dir / "metagpt_output" / latest_dir.name
-            if output_dir.exists():
-                shutil.rmtree(output_dir)
-            shutil.copytree(latest_dir, output_dir)
-            logger.info("MetaGPT 产物已复制到：%s", output_dir)
+            metagpt_dir = metagpt_artifacts_root(run_dir) / latest_dir.name
+            if metagpt_dir.exists():
+                shutil.rmtree(metagpt_dir)
+            shutil.copytree(latest_dir, metagpt_dir)
+            logger.info("MetaGPT 阶段产物已复制到：%s", metagpt_dir)
+
+            project_root = final_project_root_from_output(metagpt_dir)
+            if project_root:
+                code_dir = code_artifacts_root(run_dir) / latest_dir.name
+                if code_dir.exists():
+                    shutil.rmtree(code_dir)
+                copy_tree_excluding(project_root, code_dir)
+                logger.info("代码产物已整理到：%s", code_dir)
             if archive_workspace:
                 shutil.rmtree(latest_dir)
                 logger.info("已清理 MetaGPT 原始 workspace：%s", latest_dir)
-            return output_dir
+            return metagpt_dir
     return None
 
 
@@ -1146,14 +1262,14 @@ async def run_pipeline(
     log_handler = add_run_log_handler(run_dir)
     original_stdout = sys.stdout
     original_stderr = sys.stderr
-    with (run_dir / "run.log").open("a", encoding="utf-8") as log_file:
+    with run_log_file(run_dir).open("a", encoding="utf-8") as log_file:
         sys.stdout = Tee(original_stdout, log_file)
         sys.stderr = Tee(original_stderr, log_file)
         try:
             logger.info("运行目录：%s", run_dir)
-            (run_dir / "requirement.md").write_text(requirement, encoding="utf-8")
+            requirement_file(run_dir).write_text(requirement, encoding="utf-8")
 
-            design_path = run_dir / "design.md"
+            design_path = design_doc_file(run_dir)
             design = ""
             if mode == "patch" and not target_dir:
                 raise ValueError("patch 模式必须提供 --target-dir")
@@ -1196,7 +1312,7 @@ async def run_pipeline(
             repair_report = None
             if phase == "repair":
                 repair_report = run_repair(run_dir)
-                verification_report = run_dir / "verification.md"
+                verification_report = verification_file(run_dir)
 
             repair_attempts = 0
             last_verification_content = ""
@@ -1214,7 +1330,7 @@ async def run_pipeline(
                 repair_attempts += 1
                 logger.info("自动返修第 %d/%d 次", repair_attempts, max_repair_attempts)
                 repair_report = run_repair(run_dir)
-                verification_report = run_dir / "verification.md"
+                verification_report = verification_file(run_dir)
                 if verification_status(verification_report) == "PASSED":
                     logger.info("自动返修后验证通过")
                     break
@@ -1236,7 +1352,7 @@ async def run_pipeline(
                 f"- Requirement: {requirement}",
                 f"- Phase: {phase}",
                 f"- Output: `{run_dir}`",
-                f"- Log: `{run_dir / 'run.log'}`",
+                f"- Log: `{run_log_file(run_dir)}`",
             ]
             if verification_report:
                 summary_lines.insert(2, f"- Status: {verification_status(verification_report)}")
@@ -1250,7 +1366,7 @@ async def run_pipeline(
                 summary_lines.append(f"- Target Diff: `{target_report}`")
             summary_lines.append(f"- Cost time: {time.monotonic() - started_at:.1f}s")
             summary = "\n".join(summary_lines) + "\n"
-            (run_dir / "summary.md").write_text(summary, encoding="utf-8")
+            summary_file(run_dir).write_text(summary, encoding="utf-8")
             logger.info("Pipeline 完成，总耗时 %.1fs", time.monotonic() - started_at)
             return run_dir
         finally:

@@ -295,24 +295,29 @@ aidev "创建一个 Python CLI 计算器，支持 add/sub/mul/div，并包含 py
 输出会进入：
 
 ```text
-/Users/frank/work/aidev/runs/{timestamp}-{slug}/
+/Users/frank/work/aidev/runs/{编号}-{项目名}-{timestamp}/
 ```
 
-常见产物：
+新 run 采用编号 + 项目名 + 时间戳命名，例如：
 
 ```text
-requirement.md
-设计文档 design.md
-run.log
-summary.md
-verification.md
-repair.md
-target_diff.md
-meta_summary.md
-metagpt_output/
+0001-创建一个-Python-CLI-计算器-20260504-101758/
 ```
 
-`meta_summary.md` 会索引 MetaGPT 生成的 PRD、系统设计、任务拆分、资源文档和最终项目目录，方便快速查看中间过程；完整原始文件仍保存在 `metagpt_output/`。
+阶段产物按目录拆分：
+
+```text
+00_input/          # requirement.md
+01_design/         # design.md
+02_metagpt/        # MetaGPT PRD、系统设计、任务拆分、资源文档等原始中间产物
+03_code/           # 最终代码产物，用于验证和落盘
+04_verification/   # verification.md
+05_repair/         # repair.md
+06_reports/        # run.log、summary.md、meta_summary.md、patch_response.txt
+07_target/         # target_diff.md
+```
+
+`meta_summary.md` 会索引 MetaGPT 生成的 PRD、系统设计、任务拆分、资源文档和代码目录，方便快速查看中间过程；完整原始文件保存在 `02_metagpt/`，最终代码保存在 `03_code/`。
 
 ## 从外部 Markdown 输入生成代码
 
@@ -501,8 +506,8 @@ git add .
 
    ```bash
    aidev --list-runs 3
-   cat /Users/frank/work/aidev/runs/<run-dir>/summary.md
-   cat /Users/frank/work/aidev/runs/<run-dir>/verification.md
+   cat /Users/frank/work/aidev/runs/<run-dir>/06_reports/summary.md
+   cat /Users/frank/work/aidev/runs/<run-dir>/04_verification/verification.md
    ```
 
 3. 如果要复制到目标目录：
@@ -530,7 +535,7 @@ git add .
 3. 查看验证报告：
 
    ```bash
-   cat /Users/frank/work/aidev/runs/<run-dir>/verification.md
+   cat /Users/frank/work/aidev/runs/<run-dir>/04_verification/verification.md
    ```
 
 ### 工作流 3：修改已有项目（推荐先预览）
@@ -549,9 +554,9 @@ git add .
 2. 查看预览结果：
 
    ```bash
-   cat /Users/frank/work/aidev/runs/<run-dir>/summary.md
-   cat /Users/frank/work/aidev/runs/<run-dir>/meta_summary.md
-   cat /Users/frank/work/aidev/runs/<run-dir>/verification.md
+   cat /Users/frank/work/aidev/runs/<run-dir>/06_reports/summary.md
+   cat /Users/frank/work/aidev/runs/<run-dir>/06_reports/meta_summary.md
+   cat /Users/frank/work/aidev/runs/<run-dir>/04_verification/verification.md
    ```
 
 3. 确认无误后落盘：
